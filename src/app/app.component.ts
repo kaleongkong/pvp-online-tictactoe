@@ -34,6 +34,8 @@ export class AppComponent implements OnInit{
   	this.matches$ = this.db.list('matches');
   	this.matches = this.matches$.snapshotChanges();
 
+  	if(!this.authService.userDto) return;
+
   	this.db.object('queue/'+ this.authService.userDto.uid).valueChanges().subscribe((user) => {
   		if (user) {
   			this.isInQueue = true;
@@ -108,29 +110,39 @@ export class AppComponent implements OnInit{
   }
 
   move(i) {
-  	this.tictactoe = this.matchState.gameboard;
-		const role = this.matchState.o === this.authService.user.uid ? 'o' : 'x';
-		this.myTurn = this.matchState.turn === role;
-		if (this.tictactoe[i] === '-' && this.myTurn) {
-  		this.tictactoe[i] = role;
-  		this.myTurn = false;
-  		const newMatchState = {
-				gameboard: this.tictactoe,
-				turn: role === 'o' ? 'x' : 'o',
-				o: this.matchState.o,
-				x: this.matchState.x,
-	  	};
-		  this.match$.set(newMatchState);
-	  	if (this.checkIfWin(this.tictactoe, role)) {
-	  		this.endGameMsg = 'You Win.';
-	  	} else if (this.checkIfDraw(this.tictactoe)) {
-	  		this.endGameMsg = 'Draw.';
-	  	}
-  	} else if (!this.myTurn) {
-  		alert('not your turn');
-  	} else {
-  		alert('invalid move');
-  	}
+  	const sub = this.db.object('userToMatchId/'+this.authService.userDto.uid).valueChanges().subscribe((id) => {
+  		if (id) this.matchId = [id, this.authService.userDto.uid].sort().join('+');
+			this.match$ = this.db.object('matches/'+this.matchId);
+			const matchSub = this.match$.valueChanges().subscribe((m) => {
+				if(!m) return;
+				this.matchState = m;
+		  	this.tictactoe = this.matchState.gameboard;
+				const role = this.matchState.o === this.authService.user.uid ? 'o' : 'x';
+				this.myTurn = this.matchState.turn === role;
+				if (this.tictactoe[i] === '-' && this.myTurn) {
+		  		this.tictactoe[i] = role;
+		  		this.myTurn = false;
+		  		const newMatchState = {
+						gameboard: this.tictactoe,
+						turn: role === 'o' ? 'x' : 'o',
+						o: this.matchState.o,
+						x: this.matchState.x,
+			  	};
+				  this.match$.set(newMatchState);
+			  	if (this.checkIfWin(this.tictactoe, role)) {
+			  		this.endGameMsg = 'You Win.';
+			  	} else if (this.checkIfDraw(this.tictactoe)) {
+			  		this.endGameMsg = 'Draw.';
+			  	}
+		  	} else if (!this.myTurn) {
+		  		alert('not your turn');
+		  	} else {
+		  		alert('invalid move');
+		  	}
+		  	matchSub.unsubscribe();
+		  });
+		  sub.unsubscribe();
+		});
   }
 
   checkIfWin(gameboard, role) {
